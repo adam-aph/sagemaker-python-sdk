@@ -265,6 +265,87 @@ class _SageMakerContainer(object):
         print("===== Job Complete =====")
         return artifacts
 
+    def tune(self, input_data_config, output_data_config, hyperparameters, environment, job_name):
+        """Run a training job locally using docker-compose.
+
+        Args:
+            input_data_config (dict): The Input Data Configuration, this contains data such as the
+                channels to be used for training.
+            output_data_config: The configuration of the output data.
+            hyperparameters (dict): The HyperParameters for the training job.
+            environment (dict): The environment collection for the training job.
+            job_name (str): Name of the local training job being run.
+
+        Returns (str): Location of the trained model.
+        """
+        self.container_root = self._create_tmp_folder()
+        os.mkdir(os.path.join(self.container_root, "output"))
+        # create output/data folder since sagemaker-containers 2.0 expects it
+        os.mkdir(os.path.join(self.container_root, "output", "data"))
+        # A shared directory for all the containers. It is only mounted if the training script is
+        # Local.
+        shared_dir = os.path.join(self.container_root, "shared")
+        os.mkdir(shared_dir)
+
+        data_dir = self._create_tmp_folder()
+        volumes = self._prepare_training_volumes(
+            data_dir, input_data_config, output_data_config, hyperparameters
+        )
+        # If local, source directory needs to be updated to mounted /opt/ml/code path
+        hyperparameters = self._update_local_src_path(
+            hyperparameters, key=sagemaker.estimator.DIR_PARAM_NAME
+        )
+
+        # Create the configuration files for each container that we will create
+        # Each container will map the additional local volumes (if any).
+        for host in self.hosts:
+            _create_config_file_directories(self.container_root, host)
+            self.write_config_files(host, hyperparameters, input_data_config)
+            shutil.copytree(data_dir, os.path.join(self.container_root, host, "input", "data"))
+
+        training_env_vars = {
+            REGION_ENV_NAME: self.sagemaker_session.boto_region_name,
+            TRAINING_JOB_NAME_ENV_NAME: job_name,
+        }
+        training_env_vars.update(environment)
+        if self.sagemaker_session.s3_resource is not None:
+            training_env_vars[
+                S3_ENDPOINT_URL_ENV_NAME
+            ] = self.sagemaker_session.s3_resource.meta.client._endpoint.host
+
+        compose_data = self._generate_compose_file(
+            "tune", additional_volumes=volumes, additional_env_vars=training_env_vars
+        )
+        compose_command = self._compose()
+
+        if _ecr_login_if_needed(self.sagemaker_session.boto_session, self.image):
+            _pull_image(self.image)
+
+        process = subprocess.Popen(
+            compose_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+
+        try:
+            _stream_output(process)
+        except RuntimeError as e:
+            # _stream_output() doesn't have the command line. We will handle the exception
+            # which contains the exit code and append the command line to it.
+            msg = "Failed to run: %s, %s" % (compose_command, str(e))
+            raise RuntimeError(msg)
+        finally:
+            artifacts = self.retrieve_artifacts(compose_data, output_data_config, job_name)
+
+            # free up the training data directory as it may contain
+            # lots of data downloaded from S3. This doesn't delete any local
+            # data that was just mounted to the container.
+            dirs_to_delete = [data_dir, shared_dir]
+            self._cleanup(dirs_to_delete)
+
+        # Print our Job Complete line to have a similar experience to training on SageMaker where
+        # you see this line at the end.
+        print("===== Job Complete =====")
+        return artifacts
+
     def serve(self, model_dir, environment):
         """Host a local endpoint using docker-compose.
 

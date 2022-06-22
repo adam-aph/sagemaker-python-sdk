@@ -239,6 +239,11 @@ class _LocalTrainingJob(object):
         self.end_time = datetime.datetime.now()
         self.state = self._COMPLETED
 
+    def stop(self):
+        """Placeholder docstring"""
+        if self.container:
+            self.container.stop_serving()
+
     def describe(self):
         """Placeholder docstring"""
         response = {
@@ -250,6 +255,86 @@ class _LocalTrainingJob(object):
         }
         return response
 
+class _LocalTuningJob(object):
+    """Defines and starts a local training job."""
+
+    _STARTING = "Starting"
+    _TRAINING = "Tuning"
+    _COMPLETED = "Completed"
+    _states = ["Starting", "Tuning", "Completed"]
+
+    def __init__(self, container):
+        """Creates a local training job.
+
+        Args:
+            container: the local container object.
+        """
+        self.container = container
+        self.model_artifacts = None
+        self.state = "created"
+        self.start_time = None
+        self.end_time = None
+        self.environment = None
+
+    def start(self, input_data_config, output_data_config, hyperparameters, environment, job_name):
+        """Starts a local tuning job.
+
+        Args:
+            input_data_config (dict): The Input Data Configuration, this contains data such as the
+                channels to be used for training.
+            output_data_config (dict): The configuration of the output data.
+            hyperparameters (dict): The HyperParameters for the training job.
+            environment (dict): The collection of environment variables passed to the job.
+            job_name (str): Name of the local training job being run.
+        """
+        for channel in input_data_config:
+            if channel["DataSource"] and "S3DataSource" in channel["DataSource"]:
+                data_distribution = channel["DataSource"]["S3DataSource"]["S3DataDistributionType"]
+                data_uri = channel["DataSource"]["S3DataSource"]["S3Uri"]
+            elif channel["DataSource"] and "FileDataSource" in channel["DataSource"]:
+                data_distribution = channel["DataSource"]["FileDataSource"][
+                    "FileDataDistributionType"
+                ]
+                data_uri = channel["DataSource"]["FileDataSource"]["FileUri"]
+            else:
+                raise ValueError(
+                    "Need channel['DataSource'] to have ['S3DataSource'] or ['FileDataSource']"
+                )
+
+            # use a single Data URI - this makes handling S3 and File Data easier down the stack
+            channel["DataUri"] = data_uri
+
+            if data_distribution != "FullyReplicated":
+                raise RuntimeError(
+                    "DataDistribution: %s is not currently supported in Local Mode"
+                    % data_distribution
+                )
+
+        self.start_time = datetime.datetime.now()
+        self.state = self._TRAINING
+        self.environment = environment
+
+        self.model_artifacts = self.container.tune(
+            input_data_config, output_data_config, hyperparameters, environment, job_name
+        )
+        self.end_time = datetime.datetime.now()
+        self.state = self._COMPLETED
+
+    def stop(self):
+        """Placeholder docstring"""
+        if self.container:
+            self.container.stop_serving()
+
+    def describe(self):
+        """Placeholder docstring"""
+        response = {
+            "ResourceConfig": {"InstanceCount": self.container.instance_count},
+            "TuningJobStatus": self.state,
+            "TuningStartTime": self.start_time,
+            "TuningEndTime": self.end_time,
+            "ModelArtifacts": {"S3ModelArtifacts": self.model_artifacts},
+        }
+        return response
 
 class _LocalTransformJob(object):
     """Placeholder docstring"""

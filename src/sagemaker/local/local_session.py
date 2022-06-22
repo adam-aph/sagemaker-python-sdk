@@ -28,7 +28,7 @@ from sagemaker.local.entities import (
     _LocalModel,
     _LocalProcessingJob,
     _LocalTrainingJob,
-    _LocalTransformJob,
+    _LocalTransformJob, _LocalTuningJob,
 )
 from sagemaker.session import Session
 from sagemaker.utils import get_config_value, _module_import_error
@@ -52,6 +52,7 @@ class LocalSagemakerClient(object):
 
     _processing_jobs = {}
     _training_jobs = {}
+    _tuning_jobs = {}
     _transform_jobs = {}
     _models = {}
     _endpoint_configs = {}
@@ -213,6 +214,75 @@ class LocalSagemakerClient(object):
             }
             raise ClientError(error_response, "describe_training_job")
         return LocalSagemakerClient._training_jobs[TrainingJobName].describe()
+
+    def create_hyper_parameter_tuning_job(
+        self,
+        HyperParameterTuningJobName,
+        HyperParameterTuningJobConfig,
+        TrainingJobDefinition,
+        Environment=None,
+        **kwargs
+    ):
+        """Create a training job in Local Mode.
+
+        Args:
+          TrainingJobName(str): local training job name.
+          AlgorithmSpecification(dict): Identifies the training algorithm to use.
+          InputDataConfig(dict, optional): Describes the training dataset and the location where
+            it is stored. (Default value = None)
+          OutputDataConfig(dict): Identifies the location where you want to save the results of
+            model training.
+          ResourceConfig(dict): Identifies the resources to use for local model training.
+          Environment(dict, optional): Describes the environment variables to pass
+            to the container. (Default value = None)
+          HyperParameters(dict) [optional]: Specifies these algorithm-specific parameters to
+            influence the quality of the final model.
+          **kwargs:
+
+        Returns:
+
+        """
+        Environment = Environment or {}
+        container = _SageMakerContainer(
+            TrainingJobDefinition["ResourceConfig"]["InstanceType"],
+            TrainingJobDefinition["ResourceConfig"]["InstanceCount"],
+            TrainingJobDefinition["AlgorithmSpecification"]["TrainingImage"],
+            sagemaker_session=self.sagemaker_session,
+        )
+        tuning_job = _LocalTuningJob(container)
+        hyperparameters = kwargs["HyperParameters"] if "HyperParameters" in kwargs else {}
+        logger.info("Starting tuning job")
+        tuning_job.start(
+            TrainingJobDefinition["InputDataConfig"], TrainingJobDefinition["OutputDataConfig"],
+            hyperparameters, Environment, HyperParameterTuningJobName
+        )
+
+        LocalSagemakerClient._tuning_jobs[HyperParameterTuningJobName] = tuning_job
+
+    def describe_hyper_parameter_tuning_job(self, HyperParameterTuningJobName):
+        """Describe a local tuning job.
+
+        Args:
+          HyperParameterTuningJobName(str): Tuning job name to describe.
+
+        Returns:
+
+        """
+        if HyperParameterTuningJobName not in LocalSagemakerClient._tuning_jobs:
+            error_response = {
+                "Error": {
+                    "Code": "ValidationException",
+                    "Message": "Could not find local tuning job",
+                }
+            }
+            raise ClientError(error_response, "describe_hyper_parameter_tuning_job")
+        return LocalSagemakerClient._tuning_jobs[HyperParameterTuningJobName].describe()
+
+    def stop_hyper_parameter_tuning_job(self, HyperParameterTuningJobName):
+        """Placeholder docstring"""
+        tuning_job = LocalSagemakerClient._tuning_jobs[HyperParameterTuningJobName]
+        if tuning_job:
+            tuning_job.stop(self)
 
     def create_transform_job(
         self,
