@@ -265,7 +265,8 @@ class _SageMakerContainer(object):
         print("===== Job Complete =====")
         return artifacts
 
-    def tune(self, input_data_config, output_data_config, hyperparameters, environment, job_name):
+    def tune(self, input_data_config, output_data_config,
+             hyperparameters_static, hyperparameters_ranges, environment, job_name):
         """Run a training job locally using docker-compose.
 
         Args:
@@ -289,18 +290,21 @@ class _SageMakerContainer(object):
 
         data_dir = self._create_tmp_folder()
         volumes = self._prepare_training_volumes(
-            data_dir, input_data_config, output_data_config, hyperparameters
+            data_dir, input_data_config, output_data_config, hyperparameters_static, hyperparameters_ranges
         )
         # If local, source directory needs to be updated to mounted /opt/ml/code path
-        hyperparameters = self._update_local_src_path(
-            hyperparameters, key=sagemaker.estimator.DIR_PARAM_NAME
+        hyperparameters_static = self._update_local_src_path(
+            hyperparameters_static, key=sagemaker.estimator.DIR_PARAM_NAME
+        )
+        hyperparameters_ranges = self._update_local_src_path(
+            hyperparameters_ranges, key=sagemaker.estimator.DIR_PARAM_NAME
         )
 
         # Create the configuration files for each container that we will create
         # Each container will map the additional local volumes (if any).
         for host in self.hosts:
             _create_config_file_directories(self.container_root, host)
-            self.write_config_files(host, hyperparameters, input_data_config)
+            self.write_config_files(host, hyperparameters_static, input_data_config, hyperparameters_ranges)
             shutil.copytree(data_dir, os.path.join(self.container_root, host, "input", "data"))
 
         training_env_vars = {
@@ -521,7 +525,7 @@ class _SageMakerContainer(object):
             os.path.join(config_path, "processingjobconfig.json"), processing_job_config
         )
 
-    def write_config_files(self, host, hyperparameters, input_data_config):
+    def write_config_files(self, host, hyperparameters_static, input_data_config, hyperparameters_ranges=None):
         """Write the config files for the training containers.
 
         This method writes the hyperparameters, resources and input data
@@ -546,12 +550,15 @@ class _SageMakerContainer(object):
             if "ContentType" in c:
                 json_input_data_config[channel_name]["ContentType"] = c["ContentType"]
 
-        _write_json_file(os.path.join(config_path, "hyperparameters.json"), hyperparameters)
+        _write_json_file(os.path.join(config_path, "hyperparameters.json"), hyperparameters_static)
         _write_json_file(os.path.join(config_path, "resourceconfig.json"), resource_config)
         _write_json_file(os.path.join(config_path, "inputdataconfig.json"), json_input_data_config)
 
+        if hyperparameters_ranges is not None:
+            _write_json_file(os.path.join(config_path, "hyperparameters_ranges.json"), hyperparameters_ranges)
+
     def _prepare_training_volumes(
-        self, data_dir, input_data_config, output_data_config, hyperparameters
+        self, data_dir, input_data_config, output_data_config, hyperparameters_static, hyperparameters_ranges=None
     ):
         """Prepares the training volumes based on input and output data configs.
 
@@ -588,8 +595,8 @@ class _SageMakerContainer(object):
 
         # If there is a training script directory and it is a local directory,
         # mount it to the container.
-        if sagemaker.estimator.DIR_PARAM_NAME in hyperparameters:
-            training_dir = json.loads(hyperparameters[sagemaker.estimator.DIR_PARAM_NAME])
+        if sagemaker.estimator.DIR_PARAM_NAME in hyperparameters_static:
+            training_dir = json.loads(hyperparameters_static[sagemaker.estimator.DIR_PARAM_NAME])
             parsed_uri = urlparse(training_dir)
             if parsed_uri.scheme == "file":
                 host_dir = os.path.abspath(parsed_uri.netloc + parsed_uri.path)
@@ -597,11 +604,27 @@ class _SageMakerContainer(object):
                 # Also mount a directory that all the containers can access.
                 volumes.append(_Volume(shared_dir, "/opt/ml/shared"))
 
+        if hyperparameters_ranges is not None:
+            if sagemaker.estimator.DIR_PARAM_NAME in hyperparameters_ranges:
+                training_dir = json.loads(hyperparameters_ranges[sagemaker.estimator.DIR_PARAM_NAME])
+                parsed_uri = urlparse(training_dir)
+                if parsed_uri.scheme == "file":
+                    host_dir = os.path.abspath(parsed_uri.netloc + parsed_uri.path)
+                    volumes.append(_Volume(host_dir, "/opt/ml/code"))
+                    # Also mount a directory that all the containers can access.
+                    volumes.append(_Volume(shared_dir, "/opt/ml/shared"))
+
         parsed_uri = urlparse(output_data_config["S3OutputPath"])
-        if (
-            parsed_uri.scheme == "file"
-            and sagemaker.model.SAGEMAKER_OUTPUT_LOCATION in hyperparameters
-        ):
+        intermediate = False
+
+        if ( parsed_uri.scheme == "file" and sagemaker.model.SAGEMAKER_OUTPUT_LOCATION in hyperparameters_static ):
+            intermediate = True
+
+        if hyperparameters_ranges is not None:
+            if (parsed_uri.scheme == "file" and sagemaker.model.SAGEMAKER_OUTPUT_LOCATION in hyperparameters_ranges):
+                intermediate = True
+
+        if intermediate:
             dir_path = os.path.abspath(parsed_uri.netloc + parsed_uri.path)
             intermediate_dir = os.path.join(dir_path, "output", "intermediate")
             if not os.path.exists(intermediate_dir):

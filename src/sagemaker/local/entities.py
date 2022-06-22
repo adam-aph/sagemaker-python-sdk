@@ -276,7 +276,8 @@ class _LocalTuningJob(object):
         self.end_time = None
         self.environment = None
 
-    def start(self, input_data_config, output_data_config, hyperparameters, environment, job_name):
+    def start(self, input_data_config, output_data_config,
+              hyperparameters_static, hyperparameter_ranges, environment, job_name, **kwargs):
         """Starts a local tuning job.
 
         Args:
@@ -315,7 +316,8 @@ class _LocalTuningJob(object):
         self.environment = environment
 
         self.model_artifacts = self.container.tune(
-            input_data_config, output_data_config, hyperparameters, environment, job_name
+            input_data_config, output_data_config,
+            hyperparameters_static, hyperparameter_ranges, environment, job_name
         )
         self.end_time = datetime.datetime.now()
         self.state = self._COMPLETED
