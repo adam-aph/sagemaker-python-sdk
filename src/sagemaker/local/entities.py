@@ -331,7 +331,7 @@ class _LocalTuningJob(object):
         """Placeholder docstring"""
         response = {
             "ResourceConfig": {"InstanceCount": self.container.instance_count},
-            "TuningJobStatus": self.state,
+            "HyperParameterTuningJobStatus": self.state,
             "TuningStartTime": self.start_time,
             "TuningEndTime": self.end_time,
             "ModelArtifacts": {"S3ModelArtifacts": self.model_artifacts},
