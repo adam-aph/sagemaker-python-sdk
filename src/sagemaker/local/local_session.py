@@ -252,9 +252,11 @@ class LocalSagemakerClient(object):
         tuning_job = _LocalTuningJob(container)
         hyperparameters_static = TrainingJobDefinition["StaticHyperParameters"]
         hyperparameters_ranges = HyperParameterTuningJobConfig["ParameterRanges"]
+        input_data_config = TrainingJobDefinition["InputDataConfig"] if "InputDataConfig" in TrainingJobDefinition else {}
+        output_data_config = TrainingJobDefinition["OutputDataConfig"] if "OutputDataConfig" in TrainingJobDefinition else {}
         logger.info("Starting tuning job")
         tuning_job.start(
-            TrainingJobDefinition["InputDataConfig"], TrainingJobDefinition["OutputDataConfig"],
+            input_data_config, output_data_config,
             hyperparameters_static, hyperparameters_ranges, Environment, HyperParameterTuningJobName,
             **kwargs
         )
