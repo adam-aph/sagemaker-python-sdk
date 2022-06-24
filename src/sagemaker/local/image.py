@@ -716,7 +716,7 @@ class _SageMakerContainer(object):
             parsed_uri = urlparse(src_dir)
             if parsed_uri.scheme == "file":
                 new_params = params.copy()
-                new_params[key] = json.dumps("/markov")
+                new_params[key] = json.dumps("")  # /usr/local/lib/python3.6/dost-packages/rl_coach/training_worker.py
                 return new_params
         return params
 
