@@ -295,10 +295,10 @@ class _SageMakerContainer(object):
             data_dir, input_data_config, output_data_config, hyperparameters_static, hyperparameters_ranges
         )
         # If local, source directory needs to be updated to mounted /opt/ml/code path
-        hyperparameters_static = self._update_local_docker_src_path(
+        hyperparameters_static = self._update_local_src_path(
             hyperparameters_static, key=sagemaker.estimator.DIR_PARAM_NAME
         )
-        hyperparameters_ranges = self._update_local_docker_src_path(
+        hyperparameters_ranges = self._update_local_src_path(
             hyperparameters_ranges, key=sagemaker.estimator.DIR_PARAM_NAME
         )
 
@@ -705,18 +705,6 @@ class _SageMakerContainer(object):
             if parsed_uri.scheme == "file":
                 new_params = params.copy()
                 new_params[key] = json.dumps("/opt/ml/code")
-                return new_params
-        return params
-
-    def _update_local_docker_src_path(self, params, key):
-        """Updates the local path of source code. """
-
-        if key in params:
-            src_dir = json.loads(params[key])
-            parsed_uri = urlparse(src_dir)
-            if parsed_uri.scheme == "file":
-                new_params = params.copy()
-                new_params[key] = json.dumps("/usr/local/lib/python3.6/dost-packages/rl_coach")  # /usr/local/lib/python3.6/dost-packages/rl_coach/training_worker.py
                 return new_params
         return params
 
