@@ -294,13 +294,13 @@ class _SageMakerContainer(object):
         volumes = self._prepare_training_volumes(
             data_dir, input_data_config, output_data_config, hyperparameters_static, hyperparameters_ranges
         )
-        # If local, source directory needs to be updated to mounted /opt/ml/code path
-        hyperparameters_static = self._update_local_src_path(
-            hyperparameters_static, key=sagemaker.estimator.DIR_PARAM_NAME
-        )
-        hyperparameters_ranges = self._update_local_src_path(
-            hyperparameters_ranges, key=sagemaker.estimator.DIR_PARAM_NAME
-        )
+        # # If local, source directory needs to be updated to mounted /opt/ml/code path
+        # hyperparameters_static = self._update_local_src_path(
+        #     hyperparameters_static, key=sagemaker.estimator.DIR_PARAM_NAME
+        # )
+        # hyperparameters_ranges = self._update_local_src_path(
+        #     hyperparameters_ranges, key=sagemaker.estimator.DIR_PARAM_NAME
+        # )
 
         # Create the configuration files for each container that we will create
         # Each container will map the additional local volumes (if any).
