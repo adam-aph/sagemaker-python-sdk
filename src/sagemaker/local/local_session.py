@@ -256,6 +256,22 @@ class LocalSagemakerClient(object):
         output_data_config = TrainingJobDefinition["OutputDataConfig"] if "OutputDataConfig" in TrainingJobDefinition else {}
         logger.info("Starting tuning job")
 
+        print("-- HyperParameterTuningJobName --")
+        print(HyperParameterTuningJobName)
+        print("-- HyperParameterTuningJobName --")
+        print("-- HyperParameterTuningJobConfig --")
+        print(HyperParameterTuningJobConfig)
+        print("-- HyperParameterTuningJobConfig --")
+        print("-- TrainingJobDefinition --")
+        print(TrainingJobDefinition)
+        print("-- TrainingJobDefinition --")
+        print("-- Environment --")
+        print(Environment)
+        print("-- Environment --")
+        print("-- kwargs --")
+        print(kwargs)
+        print("-- kwargs --")
+
         tuning_job.start(
             input_data_config, output_data_config,
             hyperparameters_static, hyperparameters_ranges, Environment, HyperParameterTuningJobName,
