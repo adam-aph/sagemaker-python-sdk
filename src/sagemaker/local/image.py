@@ -267,23 +267,25 @@ class _SageMakerContainer(object):
 
     def tune(self, input_data_config, output_data_config,
              hyperparameters_static, hyperparameters_ranges, environment, job_name):
-        """Run a training job locally using docker-compose.
+        """Run a tuning job locally using docker-compose.
 
         Args:
             input_data_config (dict): The Input Data Configuration, this contains data such as the
-                channels to be used for training.
+                channels to be used for tuning.
             output_data_config: The configuration of the output data.
-            hyperparameters (dict): The HyperParameters for the training job.
-            environment (dict): The environment collection for the training job.
-            job_name (str): Name of the local training job being run.
+            hyperparameters (dict): The HyperParameters for the tuning job.
+            environment (dict): The environment collection for the tuning job.
+            job_name (str): Name of the local tuning job being run.
 
-        Returns (str): Location of the trained model.
+        Returns (str): Location of the tuned model.
         """
+        logger.info("hyperparameters tuning")
+
         self.container_root = self._create_tmp_folder()
         os.mkdir(os.path.join(self.container_root, "output"))
         # create output/data folder since sagemaker-containers 2.0 expects it
         os.mkdir(os.path.join(self.container_root, "output", "data"))
-        # A shared directory for all the containers. It is only mounted if the training script is
+        # A shared directory for all the containers. It is only mounted if the tuning script is
         # Local.
         shared_dir = os.path.join(self.container_root, "shared")
         os.mkdir(shared_dir)
