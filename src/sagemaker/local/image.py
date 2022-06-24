@@ -743,7 +743,7 @@ class _SageMakerContainer(object):
         generate the config for each individual container.
 
         Args:
-            command (str): either 'train' or 'serve'
+            command (str): 'train', 'serve' or 'tune'
             additional_volumes (list): a list of volumes that will be mapped to
                 the containers
             additional_env_vars (dict): a dictionary with additional environment
@@ -768,6 +768,8 @@ class _SageMakerContainer(object):
             os.environ[DOCKER_COMPOSE_HTTP_TIMEOUT_ENV] = DOCKER_COMPOSE_HTTP_TIMEOUT
 
         if command == "train":
+            optml_dirs = {"output", "output/data", "input"}
+        elif command == "tune":
             optml_dirs = {"output", "output/data", "input"}
         elif command == "process":
             optml_dirs = {"output", "config"}
